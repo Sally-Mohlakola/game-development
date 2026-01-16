@@ -9,90 +9,123 @@
     display:flex; justify-content:center; align-items:center; height:100vh;
   }
   canvas { background:#7ebbfd; display:block; }
+
+
+  #game {
+  position: relative;
+  }
+
+  #score {
+    position: absolute;
+    top: 0px;
+    left: 80%;
+    color: white;
+    font-family: sans-serif;
+  }
+
+  #restart {
+    position: absolute;
+    top: 80px;
+    left: 85%;
+    transform: translateX(-50%);
+    padding: 10px 20px;
+    font-size: 18px;
+    background-color: aquamarine;
+    border-radius: 50%;
+    border-width:2px;
+    padding:20px;
+    
+  }
+
+
+
+  #title {
+    position:absolute;
+    margin: 0;
+    top:20px;
+    left:30px;
+    font-family: 'Helvetica', sans-serif;
+    font-size: 40px;
+    text-align: center;
+    color:white;
+    opacity: 80%;
+  
+  }
+
+
 </style>
 
-<title>Flappy Bird</title>
+<title>Flappy Stone</title>
 </head>
     <body>
+
+      <div id="game">
+        <div id=title-bg><h1 id="title">FLAPPY STONE</h1></div>
+        <h1 style="color:white" id="score">Score:0</h1>
+        <button id="restart">RESTART</button>
         <canvas id="canvas" width="1330" height="550"></canvas>
+      </div>
+       
+
     <script>
         const canvas = document.getElementById('canvas');
         const ctx = canvas.getContext('2d');
         const W = canvas.width;
         const H = canvas.height;
 
-        let time=0;
+
+        const PILLAR_SPACING = 320;
+        const GAP_MIN = 130;
+        const GAP_MAX = 200;
+
+        let restartBtn =  document.getElementById("restart");
+        let scoreCard = document.getElementById("score");
+
+        
         let frameNumber=0;
-        let playerY=60;
 
-        let gameState="READY";
+        //Draw assets
 
-        const player = {
-          x:150,
-          y:200,
-          r:20,
-          velocity:0,
-          gravity:0.6,
-          flap:-10
+        function drawPlayer(x, y, r, color){
+            ctx.save();
 
-        }
+            const grad = ctx.createRadialGradient(
+              x- r * 0.3, y- r * 0.3, r* 0.2,
+              x, y, r
+            );
 
-        const pillarSpeed=3;
-        const pillarGap=150;
-        const pillarWidth=100;
+            grad.addColorStop(0, "hsl(120, 20%, 65%)"); // light moss stone
+            grad.addColorStop(0.5, "hsl(120, 15%, 45%)");
+            grad.addColorStop(1, "hsl(120, 10%, 30%)"); // dark edge
 
-        const keys = {
-            ArrowUp: false,
-            ArrowDown: false,
-            ArrowLeft: false,
-            ArrowRight: false
-        };
-
-/*
-        document.addEventListener("keydown", (e)=>{
-
-          if (e.key==="ArrowUp" || e.key===" "){
-            if (gameState==="READY") 
-              gameState="PLAYING";
-            if (gameState==="PLAYING")
-              player.velocity = player.flap;
-          }
-
-        });*/
-
-        document.addEventListener('keydown', (e) => {
-            if (keys.hasOwnProperty(e.key)) {
-                keys[e.key] = true;
-            }
-        });
-
-        document.addEventListener('keyup', (e) => {
-            if (keys.hasOwnProperty(e.key)) {
-                keys[e.key] = false;
-            }
-        });
-
-
-        // Update function (game logic)
-        function update() {
-            if (keys.ArrowUp) playerY -= playerSpeed;
-            if (keys.ArrowDown) playerY += playerSpeed;
-            if (keys.ArrowLeft) playerX -= playerSpeed;
-            if (keys.ArrowRight) playerX += playerSpeed;
-
-            // Optional: Constrain movement within canvas boundaries
-            playerX = Math.max(0, Math.min(canvas.width - playerSize, playerX));
-            playerY = Math.max(0, Math.min(canvas.height - playerSize, playerY));
-        }
-
-        frameNumber++;
-
-        function drawCircle(x, y, r, color){
+            ctx.fillStyle = grad;
             ctx.beginPath();
             ctx.arc(x, y, r, 0, Math.PI * 2);
-            ctx.fillStyle = color;
             ctx.fill();
-        }
+
+            // Dark outline (cartoon style)
+            ctx.strokeStyle = "hsl(120, 20%, 15%)";
+            ctx.lineWidth = 2;
+            ctx.stroke();
+
+            // Speckle noise (stone texture)
+            for (let i = 0; i < 25; i++) {
+              const nx = x + (Math.random() - 0.5) * r * 1.6;
+              const ny = y + (Math.random() - 0.5) * r * 1.6;
+
+              if ((nx-x) ** 2 + (ny-y) ** 2 < r * r) {
+                ctx.fillStyle = `hsl(120, 10%, ${30 + Math.random()*30}%)`;
+                ctx.fillRect(nx,ny,2,2);
+              }
+            }
+
+            // Highlight chip
+            ctx.beginPath();
+            ctx.arc(x-r *0.4, y-r *0.4, r*0.2, 0, Math.PI *2);
+            ctx.fillStyle = "hsla(0, 10%, 100%, 0.9)";
+            ctx.fill();
+            ctx.restore();
+      }
 
 
        function drawRect(x,y,color){
@@ -134,121 +167,180 @@
        }
 
 
-       function drawUpsideDownPillar(x,y,offset){
-        ctx.save();
-        ctx.translate(x + W-1000, y+offset); 
-        ctx.scale(1,-1);
-
-        drawPillar(x,y);
-        ctx.restore();
-       }
-
-       
-
       //Game logic
 
-        function updateKeys() {
-            if (keys.ArrowUp)
-              playerY-=10;
-            else{
-              playerY+=1.5;
-            }
+        let gameState="READY";
+        let score=0;
+
+        const player = {
+          x:200,
+          y:300,
+          r:20,
+          velocity:0,
+          gravity:0.6,
+          flap:-10
+
         }
 
-        pos=[-1400,-1600,-1800,-2000,-2200,-2400];
-        let p=0;
+        const pillarSpeed=3;
+        const pillarGap=150;
+        const pillarWidth=100;
 
+        const keys = {
+            ArrowUp: false,
+            ArrowDown: false,
+            ArrowLeft: false,
+            ArrowRight: false
+        };
 
-        
-          //drawPillar(1400-1400*(frameNumber%1000)/1000,300);
-          //drawPillar(-1400*(frameNumber%2000)/2000,300);
+        let title = document.getElementById("title");
 
+        document.addEventListener("keydown", (e)=>{
 
-        
+          if (e.key==="ArrowUp" || e.key===" " ){
 
-        function topDownPair(height, spaceInBetweenOffset){
-          drawUpsideDownPillar(-100,100,spaceInBetweenOffset);
-          drawPillar(140,height);
-        }
-
-        pillars=[];
-        heights = [145,275,345,220];
-
-        function initPillars(){
-          //top pillars
-          pillars.forEach(p=>{ p.posiion.z+=0;  });// 
-           for(let i=0;i<4;i++) pillars.push(drawPillar(140,heights[i]));
-        }
-
-         
-
-
-        function pillarLoop(){
-          heights = [145,275,345,220];
-          spaces =  [0,130,200,75];
-
-          let spacing = 1400-2560*(frameNumber%2400)/2400;
-          
-          let ret= true;
-
-
-          
-
-          for (let i=0; i<4; i++){
-           
-            ctx.save();
-            ctx.translate(spacing,150);
-
-            spacing+=300;
-            topDownPair(heights[i],spaces[i]);
-            ctx.restore();
+            if (gameState==="READY") 
+              gameState="PLAYING";
+            if (gameState==="PLAYING")
+              player.velocity = player.flap;
           }
 
-        
+        });
+
+
+
+        let pillars=[];
+
+        function spawnPillar(x = W) {
+          const gapSize = GAP_MIN +Math.random()*(GAP_MAX-GAP_MIN);
+          const gapY = Math.random()* (H-gapSize-120)+60;
+
+          pillars.push({
+            x,
+            gapY,
+            gapSize
+          });
+        }
+
+
+
+        // Update function (game logic)
+        function update() {
+
+          // Spawn new pillar when last one is far enough
+          if (pillars.length === 0) {
+            spawnPillar();
+          }
+          else{
+            const last = pillars[pillars.length - 1];
+            if (last.x < W - PILLAR_SPACING) {
+              spawnPillar();
+            }
+          }
+
+
+          scoreCard.innerText=`Score: ${score}`;
+          score++;
+
+          player.velocity+=player.gravity;
+          player.y+= player.velocity;
+
+          if (player.y+player.velocity>H || player.y -player.r<0){
+            gameState="GAME_OVER";
+            score=0;
+          }
+
+          for (let p of pillars){
+            p.x-=pillarSpeed;
+          
+
+          if (player.x + player.r > p.x && player.x - player.r < p.x + pillarWidth) {
+            
+
+            //TOP of GAP
+            if (player.y - player.r< p.gapY) {
+              gameState = "GAME_OVER";
+              score=0;
+            }
+            
+            //BOTTOM of GAP
+            if (player.y + player.r > p.gapY + p.gapSize)
+ {
+              gameState = "GAME_OVER";
+              score=0;
+            }
+          }
+ 
+        }
+
+        pillars = pillars.filter(p=>p.x + pillarWidth>0);// remove offscreen pillars
+      }
+
+      function placePillars(){
+        for (let p of pillars){
+
+          drawPillar(p.x, p.gapY+p.gapSize);
+
+
+          ctx.save();
+          ctx.translate(p.x + pillarWidth-100, p.gapY);
+          ctx.scale(1, -1);
+          drawPillar(0, 0);
+          ctx.restore();
+          
+        }
       }
 
 
-
-      //player pos - position of pillar<0.4 break;
-
         function render(){
-          ctx.clearRect(0, 0, W, H); 
-          frameNumber++;
-          pillarLoop();
+          ctx.clearRect(0,0,W, H); 
 
-          //if (playerY-)
+          if (gameState==="PLAYING"){
+            update();
+          }
 
-         //topDownPair(220,75); //(height, spaceOffset); height=> pillarDown ; spaceOffset=> pillarDown
-         
-          drawCircle(150,playerY,20,"red");
+          placePillars();
+          drawPlayer(player.x,player.y,player.r,"red");
         }
 
+        restartBtn.addEventListener("click", () => {
+       
+        gameState = "READY";
+        frameNumber =0;
+        score=0;
+        scoreCard.innerText="Score: 0";
+
+
+        player.x = 150;
+        player.y = 200;
+        player.velocity = 0;
+        player.gravity=0;
+
+        document.addEventListener("keydown", (e)=>{
+
+          if (e.key==="ArrowUp" || e.key===" "){
+            player.gravity=0.6;
+            
+          }
+
+        });
+
+        pillars.length = 0;
+
+      });
+
         function animate(ts){
-          updateKeys();
+          frameNumber++;
           render();
 
           requestAnimationFrame(animate);
 
         }
-
-
-       
-
-      
         animate();
-       
-
+     
         
-       //1bc907
-
-
-
-
     </script>
     </body>
-
-
-
 
 
 </html>
